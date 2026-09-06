@@ -11,6 +11,7 @@ COMFY_DIR="$SCRIPT_DIR/engine"
 # AMD ROCm / Navi 23 Hardware Optimizations
 export HSA_OVERRIDE_GFX_VERSION=10.3.0
 export HSA_ENABLE_SDMA=0
+export HSA_ENABLE_INTERRUPT=1
 export ROCR_VISIBLE_DEVICES=0
 export MIOPEN_FIND_MODE=1
 export PYTORCH_HIP_ALLOC_CONF="expandable_segments:True,garbage_collection_threshold:0.8"

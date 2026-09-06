@@ -22,7 +22,7 @@ cleanup() {
         -d '{"unload_models": true, "free_memory": true}' >/dev/null 2>&1 || true
     
     # 2. Terminate ComfyUI backend process
-    pkill -f "ComfyUI/main.py" 2>/dev/null || true
+    pkill -f "engine/main.py" 2>/dev/null || true
     
     # 3. Terminate Comfy Studio server
     if [ -n "${SERVER_PID:-}" ]; then
@@ -35,13 +35,13 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # 1. Check if ComfyUI is running; if not, launch it
-if ! curl -s "http://127.0.0.1:${COMFY_PORT}/system_stats" >/dev/null 2>&1; then
+if ! curl -s "http://127.0.0.1:${COMFY_PORT}/queue" >/dev/null 2>&1; then
     if [ -f "$COMFY_SCRIPT" ]; then
         echo "⚡ Launching ComfyUI backend (AMD RX 6650 XT)..."
-        bash "$COMFY_SCRIPT" >/dev/null 2>&1 &
+        bash "$COMFY_SCRIPT" > "$SCRIPT_DIR/comfyui.log" 2>&1 &
         echo "⏳ Waiting for ComfyUI backend to initialize..."
         for i in {1..30}; do
-            if curl -s "http://127.0.0.1:${COMFY_PORT}/system_stats" >/dev/null 2>&1; then
+            if curl -s "http://127.0.0.1:${COMFY_PORT}/queue" >/dev/null 2>&1; then
                 echo "✅ ComfyUI backend ready!"
                 break
             fi

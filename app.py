@@ -50,7 +50,7 @@ def offload_and_kill_comfy():
 
     print("🛑 Terminating ComfyUI backend process...")
     try:
-        subprocess.run(["pkill", "-f", "ComfyUI/main.py"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["pkill", "-f", "engine/main.py"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception:
         pass
 
@@ -220,8 +220,13 @@ class StudioHandler(http.server.SimpleHTTPRequestHandler):
                 status["system"] = stats.get("system", {})
                 status["devices"] = stats.get("devices", [])
         except Exception:
-            self.send_json(status)
-            return
+            try:
+                queue_url = f"http://{COMFY_HOST}/queue"
+                with urllib.request.urlopen(queue_url, timeout=2) as resp:
+                    status["online"] = True
+            except Exception:
+                self.send_json(status)
+                return
 
         try:
             ckpt_url = f"http://{COMFY_HOST}/object_info/CheckpointLoaderSimple"
