@@ -2,8 +2,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const clientId = "cs_" + Math.random().toString(36).substring(2, 10);
   let ws = null;
   let activePromptId = null;
-  let currentWidth = 896;
-  let currentHeight = 1600;
+  let currentWidth = 768;
+  let currentHeight = 1344;
   let currentRatio = "9:16";
 
   // Elements

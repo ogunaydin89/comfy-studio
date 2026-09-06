@@ -18,6 +18,7 @@ export PYTORCH_HIP_ALLOC_CONF="expandable_segments:True,garbage_collection_thres
 exec "$VENV_DIR/bin/python" "$COMFY_DIR/main.py" \
     --listen 127.0.0.1 \
     --port 8188 \
+    --fp32-vae \
     --cpu-vae \
     --use-split-cross-attention \
     --cache-lru 1 \
