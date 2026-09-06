@@ -62,12 +62,16 @@ else
     SERVER_PID=""
 fi
 
-# 3. Open UI in standalone dedicated window (blocks until closed)
+# 3. Open UI in isolated native Qt6 window (or fallback to Chrome/browser)
 URL="http://127.0.0.1:${PORT}"
-mkdir -p "$CHROME_PROFILE"
+WINDOW_RUNNER="$SCRIPT_DIR/window.py"
 
-if [ -x "/opt/google/chrome/google-chrome" ]; then
+if [ -f "$WINDOW_RUNNER" ] && [ -x "$SCRIPT_DIR/.venv/bin/python" ]; then
+    echo "🖥️ Running Comfy Studio in native isolated Qt6 window..."
+    "$SCRIPT_DIR/.venv/bin/python" "$WINDOW_RUNNER" "$URL" "Comfy Studio" "$SCRIPT_DIR/icon.svg"
+elif [ -x "/opt/google/chrome/google-chrome" ]; then
     echo "🖥️ Running Comfy Studio (closing window will completely offload and shut down)..."
+    mkdir -p "$CHROME_PROFILE"
     /opt/google/chrome/google-chrome \
         --user-data-dir="$CHROME_PROFILE" \
         --app="$URL" \

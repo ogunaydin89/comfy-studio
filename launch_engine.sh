@@ -22,5 +22,6 @@ exec "$VENV_DIR/bin/python" "$COMFY_DIR/main.py" \
     --fp32-vae \
     --cpu-vae \
     --use-split-cross-attention \
+    --enable-cors-header "*" \
     --cache-lru 1 \
     "$@"

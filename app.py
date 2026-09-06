@@ -115,10 +115,22 @@ class StudioHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_save_image()
         elif path == "/api/unload":
             self.handle_unload()
+        elif path == "/api/interrupt":
+            self.handle_interrupt()
         elif path == "/api/shutdown":
             self.handle_shutdown()
         else:
             self.send_error(404, "Not Found")
+
+    def handle_interrupt(self):
+        """Immediately interrupts the active sampling job on ComfyUI."""
+        try:
+            req = urllib.request.Request(f"http://{COMFY_HOST}/interrupt", data=b"{}", headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=2):
+                pass
+            self.send_json({"success": True, "message": "Generation interrupted"})
+        except Exception as e:
+            self.send_json({"error": str(e), "success": False}, status_code=500)
 
     def handle_heartbeat(self):
         global last_heartbeat, has_received_heartbeat

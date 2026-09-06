@@ -202,6 +202,39 @@ document.addEventListener("DOMContentLoaded", () => {
     btnDownload.download = title || "artwork.png";
   }
 
+  // Batch Mode Controls & State
+  let isBatchRunning = false;
+  let currentBatchIndex = 1;
+  let totalBatches = 1;
+
+  const batchCountInput = document.getElementById("batchCountInput");
+  const batchCountVal = document.getElementById("batchCountVal");
+  const batchInfinite = document.getElementById("batchInfinite");
+  const batchCountGroup = document.getElementById("batchCountGroup");
+  const btnStopBatch = document.getElementById("btnStopBatch");
+
+  if (batchInfinite) {
+    batchInfinite.addEventListener("change", () => {
+      if (batchInfinite.checked) {
+        batchCountGroup.style.opacity = "0.5";
+        batchCountInput.disabled = true;
+        batchCountVal.textContent = "∞ (Continuous Heater)";
+      } else {
+        batchCountGroup.style.opacity = "1";
+        batchCountInput.disabled = false;
+        batchCountVal.textContent = `${batchCountInput.value} image${batchCountInput.value > 1 ? "s" : ""}`;
+      }
+    });
+  }
+
+  if (batchCountInput) {
+    batchCountInput.addEventListener("input", () => {
+      if (!batchInfinite.checked) {
+        batchCountVal.textContent = `${batchCountInput.value} image${batchCountInput.value > 1 ? "s" : ""}`;
+      }
+    });
+  }
+
   async function saveAndDisplayImage(imgInfo) {
     try {
       const resp = await fetch("/api/save_image", {
@@ -222,7 +255,14 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (e) {
       console.error("Failed to save image:", e);
     } finally {
-      finishGeneration();
+      activePromptId = null;
+      if (isBatchRunning && (batchInfinite.checked || currentBatchIndex < totalBatches)) {
+        currentBatchIndex++;
+        progressStatus.textContent = `Batch item saved. Starting #${currentBatchIndex}...`;
+        setTimeout(triggerSingleGeneration, 400);
+      } else {
+        stopBatch();
+      }
     }
   }
 
@@ -231,7 +271,18 @@ document.addEventListener("DOMContentLoaded", () => {
     progressOverlay.classList.remove("active");
     btnGenerate.disabled = false;
     btnGenerateText.textContent = "Generate Image";
+    btnStopBatch.classList.add("hidden");
   }
+
+  function stopBatch() {
+    isBatchRunning = false;
+    finishGeneration();
+    fetch("/api/interrupt", { method: "POST" }).catch(() => {});
+  }
+
+  btnStopBatch.addEventListener("click", () => {
+    stopBatch();
+  });
 
   // Aspect Ratio
   ratioBtns.forEach((btn) => {
@@ -283,20 +334,31 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Generate Trigger
-  btnGenerate.addEventListener("click", async () => {
+  // Generate Trigger with Batch Support
+  async function triggerSingleGeneration() {
     const prompt = promptInput.value.trim();
     if (!prompt) {
-      promptInput.focus();
+      stopBatch();
       return;
     }
 
     btnGenerate.disabled = true;
-    btnGenerateText.textContent = "Generating...";
+    if (batchInfinite.checked || totalBatches > 1) {
+      btnStopBatch.classList.remove("hidden");
+      btnGenerateText.textContent = batchInfinite.checked 
+        ? `Generating (#${currentBatchIndex} ∞)...` 
+        : `Generating (${currentBatchIndex}/${totalBatches})...`;
+    } else {
+      btnGenerateText.textContent = "Generating...";
+      btnStopBatch.classList.add("hidden");
+    }
+
     progressOverlay.classList.add("active");
     progressBar.style.width = "5%";
-    progressStatus.textContent = "Queueing prompt to ComfyUI...";
-    progressMeta.textContent = "AMD ROCm 7.2";
+    progressStatus.textContent = batchInfinite.checked
+      ? `Queueing batch #${currentBatchIndex} (Heater Mode)...`
+      : (totalBatches > 1 ? `Queueing batch ${currentBatchIndex} of ${totalBatches}...` : "Queueing prompt to ComfyUI...");
+    progressMeta.textContent = `AMD ROCm 7.2 • RX 6650 XT`;
 
     const payload = {
       prompt: prompt,
@@ -308,7 +370,7 @@ document.addEventListener("DOMContentLoaded", () => {
       cfg: parseFloat(cfgInput.value),
       sampler_name: samplerSelect.value,
       scheduler: schedulerSelect.value,
-      seed: seedRandom.checked ? -1 : parseInt(seedInput.value || -1),
+      seed: seedRandom.checked ? -1 : (parseInt(seedInput.value || -1) + (currentBatchIndex - 1)),
       client_id: clientId
     };
 
@@ -325,12 +387,24 @@ document.addEventListener("DOMContentLoaded", () => {
         pollHistory(activePromptId);
       } else {
         alert("Failed to queue generation: " + (data.error || "Unknown error"));
-        finishGeneration();
+        stopBatch();
       }
     } catch (e) {
       alert("Network error: " + e.message);
-      finishGeneration();
+      stopBatch();
     }
+  }
+
+  btnGenerate.addEventListener("click", () => {
+    const prompt = promptInput.value.trim();
+    if (!prompt) {
+      promptInput.focus();
+      return;
+    }
+    isBatchRunning = true;
+    currentBatchIndex = 1;
+    totalBatches = batchInfinite.checked ? Infinity : parseInt(batchCountInput.value);
+    triggerSingleGeneration();
   });
 
   async function pollHistory(pId) {
