@@ -30,12 +30,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const progressStatus = document.getElementById("progressStatus");
   const progressBar = document.getElementById("progressBar");
   const progressMeta = document.getElementById("progressMeta");
+  const shutdownOverlay = document.getElementById("shutdownOverlay");
   const mainImage = document.getElementById("mainImage");
   const placeholder = document.getElementById("placeholder");
   const imageMeta = document.getElementById("imageMeta");
   const btnCopyPrompt = document.getElementById("btnCopyPrompt");
   const btnDownload = document.getElementById("btnDownload");
   const btnOpenFolder = document.getElementById("btnOpenFolder");
+  const btnUnload = document.getElementById("btnUnload");
+  const btnQuit = document.getElementById("btnQuit");
   const galleryStrip = document.getElementById("galleryStrip");
   const galleryCount = document.getElementById("galleryCount");
 
@@ -49,6 +52,13 @@ document.addEventListener("DOMContentLoaded", () => {
   // Init Negative Prompt
   negativePromptInput.value = NEGATIVE_PRESETS.photo;
 
+  // Heartbeat loop - informs backend that UI is actively open
+  function sendHeartbeat() {
+    fetch("/api/heartbeat", { method: "POST" }).catch(() => {});
+  }
+  sendHeartbeat();
+  setInterval(sendHeartbeat, 3000);
+
   // Setup WebSocket to ComfyUI for real-time progress
   function initWebSocket() {
     try {
@@ -59,9 +69,7 @@ document.addEventListener("DOMContentLoaded", () => {
           handleComfyMessage(msg);
         } catch (e) {}
       };
-      ws.onerror = () => {
-        // Fall back gracefully to polling
-      };
+      ws.onerror = () => {};
       ws.onclose = () => {
         setTimeout(initWebSocket, 3000);
       };
@@ -90,7 +98,6 @@ document.addEventListener("DOMContentLoaded", () => {
           progressStatus.textContent = "Decoding VAE on CPU...";
           progressBar.style.width = "95%";
         } else if (node === null) {
-          // Finished execution
           progressStatus.textContent = "Finalizing image...";
           progressBar.style.width = "100%";
         }
@@ -128,7 +135,6 @@ document.addEventListener("DOMContentLoaded", () => {
           vramText.textContent = `RX 6650 XT: ${freeMb}MB / ${totalMb}MB`;
         }
 
-        // Populate checkpoints if list matches
         if (data.checkpoints && data.checkpoints.length > 0) {
           const currentVal = checkpointSelect.value;
           checkpointSelect.innerHTML = "";
@@ -187,7 +193,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   loadGallery();
 
-  // Display Image in Viewport
   function displayImage(url, title = "") {
     mainImage.src = url;
     mainImage.classList.remove("hidden");
@@ -197,7 +202,6 @@ document.addEventListener("DOMContentLoaded", () => {
     btnDownload.download = title || "artwork.png";
   }
 
-  // Save Image from ComfyUI to local disk
   async function saveAndDisplayImage(imgInfo) {
     try {
       const resp = await fetch("/api/save_image", {
@@ -216,7 +220,7 @@ document.addEventListener("DOMContentLoaded", () => {
         loadGallery();
       }
     } catch (e) {
-      console.error("Failed to save generated image:", e);
+      console.error("Failed to save image:", e);
     } finally {
       finishGeneration();
     }
@@ -229,7 +233,7 @@ document.addEventListener("DOMContentLoaded", () => {
     btnGenerateText.textContent = "Generate Image";
   }
 
-  // Aspect Ratio Handling
+  // Aspect Ratio
   ratioBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
       ratioBtns.forEach((b) => b.classList.remove("active"));
@@ -241,7 +245,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Prompt Tag Chips
+  // Tag chips
   document.querySelectorAll(".tag-chip").forEach((chip) => {
     chip.addEventListener("click", () => {
       const tag = chip.dataset.tag;
@@ -254,7 +258,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Negative Preset Switcher
   negativePreset.addEventListener("change", () => {
     const val = negativePreset.value;
     if (NEGATIVE_PRESETS[val] !== undefined && val !== "custom") {
@@ -262,17 +265,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Clear Prompt
   btnClearPrompt.addEventListener("click", () => {
     promptInput.value = "";
     promptInput.focus();
   });
 
-  // Slider inputs
   stepsInput.addEventListener("input", () => { stepsVal.textContent = stepsInput.value; });
   cfgInput.addEventListener("input", () => { cfgVal.textContent = parseFloat(cfgInput.value).toFixed(1); });
 
-  // Seed randomization
   seedRandom.addEventListener("change", () => {
     seedInput.disabled = seedRandom.checked;
     if (seedRandom.checked) {
@@ -283,7 +283,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Generate Image Trigger
+  // Generate Trigger
   btnGenerate.addEventListener("click", async () => {
     const prompt = promptInput.value.trim();
     if (!prompt) {
@@ -322,7 +322,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (data.success) {
         activePromptId = data.prompt_id;
-        // Start polling fallback in case WebSocket drops
         pollHistory(activePromptId);
       } else {
         alert("Failed to queue generation: " + (data.error || "Unknown error"));
@@ -334,7 +333,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Polling Fallback
   async function pollHistory(pId) {
     let attempts = 0;
     const interval = setInterval(async () => {
@@ -358,14 +356,43 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 1500);
   }
 
-  // Open Generations Folder
   btnOpenFolder.addEventListener("click", async () => {
-    try {
-      await fetch("/api/open_folder", { method: "POST" });
-    } catch (e) {}
+    try { await fetch("/api/open_folder", { method: "POST" }); } catch (e) {}
   });
 
-  // Copy Prompt
+  // Purge / Free VRAM without quitting
+  btnUnload.addEventListener("click", async () => {
+    btnUnload.disabled = true;
+    const prev = btnUnload.textContent;
+    btnUnload.textContent = "Purging...";
+    try {
+      await fetch("/api/unload", { method: "POST" });
+      setTimeout(checkStatus, 500);
+    } catch (e) {}
+    finally {
+      btnUnload.disabled = false;
+      btnUnload.textContent = prev;
+    }
+  });
+
+  // Explicit Quit & Offload
+  btnQuit.addEventListener("click", async () => {
+    if (confirm("Shut down Comfy Studio, stop ComfyUI, and free all VRAM & RAM?")) {
+      shutdownOverlay.classList.add("active");
+      try {
+        await fetch("/api/shutdown", { method: "POST" });
+      } catch (e) {}
+      setTimeout(() => {
+        window.close();
+      }, 1000);
+    }
+  });
+
+  // Send Beacon on Tab/Window Unload
+  window.addEventListener("beforeunload", () => {
+    navigator.sendBeacon("/api/shutdown");
+  });
+
   btnCopyPrompt.addEventListener("click", () => {
     if (promptInput.value) {
       navigator.clipboard.writeText(promptInput.value);

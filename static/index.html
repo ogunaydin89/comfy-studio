@@ -30,7 +30,7 @@
           <span class="status-dot"></span>
           <span class="status-text">Checking ComfyUI...</span>
         </div>
-        <div class="telemetry-pill" id="vramPill" title="VRAM Usage">
+        <div class="telemetry-pill" id="vramPill" title="VRAM Allocation">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="2" y="4" width="20" height="16" rx="2" />
             <path d="M6 8h4v8H6zM14 8h4v8h-4z" />
@@ -40,22 +40,26 @@
       </div>
 
       <div class="header-actions">
+        <button class="btn btn-secondary btn-sm" id="btnUnload" title="Purge models from VRAM immediately">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="1 4 1 10 7 10"></polyline>
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+          </svg>
+          Free VRAM
+        </button>
         <button class="btn btn-secondary btn-sm" id="btnOpenFolder" title="Open output gallery in Dolphin">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
           </svg>
           Generations
         </button>
-        <a href="http://127.0.0.1:8188" target="_blank" class="btn btn-secondary btn-sm" title="Open raw ComfyUI node graph">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="18" cy="5" r="3" />
-            <circle cx="6" cy="12" r="3" />
-            <circle cx="18" cy="19" r="3" />
-            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+        <button class="btn btn-danger btn-sm" id="btnQuit" title="Close studio and fully shut down ComfyUI">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+            <line x1="12" y1="2" x2="12" y2="12"></line>
           </svg>
-          Nodes
-        </a>
+          Quit & Offload
+        </button>
       </div>
     </header>
 
@@ -196,7 +200,6 @@
 
       <!-- RIGHT VIEWPORT & GALLERY -->
       <section class="viewport-panel">
-        <!-- Live Generation Canvas Area -->
         <div class="canvas-container">
           <div class="canvas-viewport" id="viewport">
             <div class="canvas-placeholder" id="placeholder">
@@ -221,6 +224,13 @@
                 </div>
                 <div class="progress-meta" id="progressMeta">Queueing</div>
               </div>
+            </div>
+
+            <!-- Shutdown Overlay -->
+            <div class="shutdown-overlay" id="shutdownOverlay">
+              <div class="spinner"></div>
+              <h3>Shutting Down Comfy Studio</h3>
+              <p>Purging models from VRAM and closing backend engines...</p>
             </div>
 
             <!-- Image View -->
@@ -256,9 +266,7 @@
             <span class="section-label">Recent Generations</span>
             <span class="gallery-count" id="galleryCount">0 images</span>
           </div>
-          <div class="gallery-strip" id="galleryStrip">
-            <!-- Thumbnails injected here -->
-          </div>
+          <div class="gallery-strip" id="galleryStrip"></div>
         </div>
       </section>
     </main>

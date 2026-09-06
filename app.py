@@ -2,6 +2,7 @@
 """
 Comfy Studio - Desktop Image Generation Studio
 Zero-dependency Python backend interfacing with ComfyUI REST & WebSocket API.
+Includes automatic lifecycle management and full VRAM/RAM offloading on exit.
 """
 
 import http.server
@@ -27,6 +28,45 @@ OUTPUT_DIR = os.path.expanduser("~/Pictures/AI_Generations")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(STATIC_DIR, exist_ok=True)
+
+# Lifecycle Watchdog
+last_heartbeat = time.time()
+has_received_heartbeat = False
+server_instance = None
+
+def offload_and_kill_comfy():
+    """Completely offloads models from VRAM/RAM and shuts down ComfyUI."""
+    print("🛑 Offloading ComfyUI models from VRAM and RAM...")
+    try:
+        req = urllib.request.Request(
+            f"http://{COMFY_HOST}/free",
+            data=json.dumps({"unload_models": True, "free_memory": True}).encode("utf-8"),
+            headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            pass
+    except Exception:
+        pass
+
+    print("🛑 Terminating ComfyUI backend process...")
+    try:
+        subprocess.run(["pkill", "-f", "ComfyUI/main.py"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+def watchdog_loop():
+    """Shuts down if no browser window has pinged heartbeat in 10 seconds."""
+    global last_heartbeat, has_received_heartbeat, server_instance
+    while True:
+        time.sleep(2)
+        if has_received_heartbeat:
+            elapsed = time.time() - last_heartbeat
+            if elapsed > 10:
+                print(f"⚠️ No active browser connection for {elapsed:.1f}s. Initiating auto-shutdown & offload...")
+                offload_and_kill_comfy()
+                if server_instance:
+                    threading.Thread(target=server_instance.shutdown).start()
+                break
 
 class StudioHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -63,7 +103,9 @@ class StudioHandler(http.server.SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
 
-        if path == "/api/generate":
+        if path == "/api/heartbeat":
+            self.handle_heartbeat()
+        elif path == "/api/generate":
             self.handle_api_generate()
         elif path == "/api/start_comfyui":
             self.handle_start_comfyui()
@@ -71,8 +113,41 @@ class StudioHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_open_folder()
         elif path == "/api/save_image":
             self.handle_save_image()
+        elif path == "/api/unload":
+            self.handle_unload()
+        elif path == "/api/shutdown":
+            self.handle_shutdown()
         else:
             self.send_error(404, "Not Found")
+
+    def handle_heartbeat(self):
+        global last_heartbeat, has_received_heartbeat
+        last_heartbeat = time.time()
+        has_received_heartbeat = True
+        self.send_json({"ok": True, "time": last_heartbeat})
+
+    def handle_unload(self):
+        """Unloads all models from VRAM without shutting down server."""
+        try:
+            req = urllib.request.Request(
+                f"http://{COMFY_HOST}/free",
+                data=json.dumps({"unload_models": True, "free_memory": True}).encode("utf-8"),
+                headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                self.send_json({"success": True, "message": "VRAM and models offloaded."})
+        except Exception as e:
+            self.send_json({"error": str(e), "success": False}, status_code=500)
+
+    def handle_shutdown(self):
+        """Clean shutdown: offloads models, terminates ComfyUI, exits Studio."""
+        self.send_json({"success": True, "message": "Shutting down ComfyUI and Studio..."})
+        def perform_exit():
+            time.sleep(0.5)
+            offload_and_kill_comfy()
+            print("✨ Shutdown complete. All memory freed.")
+            os._exit(0)
+        threading.Thread(target=perform_exit).start()
 
     def serve_file(self, filepath, content_type=None):
         if not os.path.isfile(filepath):
@@ -148,7 +223,6 @@ class StudioHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json(status)
             return
 
-        # Fetch checkpoints
         try:
             ckpt_url = f"http://{COMFY_HOST}/object_info/CheckpointLoaderSimple"
             with urllib.request.urlopen(ckpt_url, timeout=3) as resp:
@@ -157,7 +231,6 @@ class StudioHandler(http.server.SimpleHTTPRequestHandler):
         except Exception:
             pass
 
-        # Fetch samplers & schedulers
         try:
             sampler_url = f"http://{COMFY_HOST}/object_info/KSampler"
             with urllib.request.urlopen(sampler_url, timeout=3) as resp:
@@ -224,7 +297,6 @@ class StudioHandler(http.server.SimpleHTTPRequestHandler):
         client_id = payload.get("client_id", str(uuid.uuid4()))
         prompt_id = str(uuid.uuid4())
 
-        # Construct ComfyUI graph
         workflow = {
             "3": {
                 "class_type": "KSampler",
@@ -352,18 +424,26 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     daemon_threads = True
 
 def run():
+    global server_instance
     server_address = ("127.0.0.1", PORT)
-    httpd = ThreadedHTTPServer(server_address, StudioHandler)
+    server_instance = ThreadedHTTPServer(server_address, StudioHandler)
+    
+    # Start auto-shutdown watchdog thread
+    wd = threading.Thread(target=watchdog_loop, daemon=True)
+    wd.start()
+
     print(f"==================================================")
     print(f"  🎨 Comfy Studio running at http://127.0.0.1:{PORT}")
     print(f"  📁 Output Directory: {OUTPUT_DIR}")
     print(f"  🔌 Target ComfyUI:   http://{COMFY_HOST}")
+    print(f"  🛡️ Auto-offload:    Enabled on window/app close")
     print(f"==================================================")
     try:
-        httpd.serve_forever()
+        server_instance.serve_forever()
     except KeyboardInterrupt:
         print("\nStopping Comfy Studio...")
-        httpd.shutdown()
+        offload_and_kill_comfy()
+        server_instance.shutdown()
 
 if __name__ == "__main__":
     run()

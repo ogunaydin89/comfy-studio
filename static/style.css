@@ -646,3 +646,45 @@ body {
   border-color: var(--accent-primary);
   box-shadow: 0 0 10px rgba(124, 58, 237, 0.5);
 }
+
+/* DANGER & SHUTDOWN */
+.btn-danger {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.btn-danger:hover {
+  background-color: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
+}
+
+.shutdown-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 7, 10, 0.95);
+  backdrop-filter: blur(12px);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 99;
+  text-align: center;
+}
+
+.shutdown-overlay.active {
+  display: flex;
+}
+
+.shutdown-overlay h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.shutdown-overlay p {
+  font-size: 13px;
+  color: var(--text-muted);
+}
