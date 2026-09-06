@@ -243,7 +243,7 @@ class StudioHandler(http.server.SimpleHTTPRequestHandler):
         self.send_json(status)
 
     def handle_start_comfyui(self):
-        script_path = os.path.expanduser("~/Local Ai Production/scripts/run_comfyui.sh")
+        script_path = os.path.join(BASE_DIR, "launch_engine.sh")
         if not os.path.isfile(script_path):
             self.send_json({"error": f"Launch script not found at {script_path}"}, status_code=404)
             return

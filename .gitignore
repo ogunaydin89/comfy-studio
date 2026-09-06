@@ -4,3 +4,12 @@ __pycache__/
 .DS_Store
 *.log
 .env
+
+# Local Engine & Model Binaries (Excluded from Codeberg)
+.venv/
+engine/
+models/
+*.safetensors
+*.ckpt
+*.bin
+*.pt

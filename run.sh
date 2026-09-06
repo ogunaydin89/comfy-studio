@@ -7,7 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PORT=5111
 COMFY_PORT=8188
-COMFY_SCRIPT="/home/helin/Local Ai Production/scripts/run_comfyui.sh"
+COMFY_SCRIPT="$SCRIPT_DIR/launch_engine.sh"
 CHROME_PROFILE="/home/helin/.cache/comfy-studio-chrome"
 
 echo "🎨 Initializing Comfy Studio..."
