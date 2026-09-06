@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Comfy Studio
+Comment=AMD ROCm SDXL Image Generation Studio
+Exec=/home/helin/Code/comfy-studio/run.sh
+Icon=/home/helin/Code/comfy-studio/static/icon.svg
+Terminal=false
+Type=Application
+Categories=Graphics;2DGraphics;Photography;AudioVideo;
+StartupWMClass=127.0.0.1__5111

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Comfy Studio — Image Generation</title>
+  <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- TOP NAVIGATION / TELEMETRY -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="4" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <path d="M21 15l-5-5L5 21" />
+          </svg>
+        </div>
+        <div>
+          <div class="brand-title">Comfy Studio</div>
+          <div class="brand-sub">AMD ROCm & SDXL Accelerated</div>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <div class="status-badge" id="backendStatus">
+          <span class="status-dot"></span>
+          <span class="status-text">Checking ComfyUI...</span>
+        </div>
+        <div class="telemetry-pill" id="vramPill" title="VRAM Usage">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="4" width="20" height="16" rx="2" />
+            <path d="M6 8h4v8H6zM14 8h4v8h-4z" />
+          </svg>
+          <span id="vramText">RX 6650 XT</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button class="btn btn-secondary btn-sm" id="btnOpenFolder" title="Open output gallery in Dolphin">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+          </svg>
+          Generations
+        </button>
+        <a href="http://127.0.0.1:8188" target="_blank" class="btn btn-secondary btn-sm" title="Open raw ComfyUI node graph">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="18" cy="5" r="3" />
+            <circle cx="6" cy="12" r="3" />
+            <circle cx="18" cy="19" r="3" />
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+          </svg>
+          Nodes
+        </a>
+      </div>
+    </header>
+
+    <!-- MAIN STUDIO WORKSPACE -->
+    <main class="studio-layout">
+      <!-- LEFT CONTROL PANEL -->
+      <aside class="control-panel">
+        <!-- Model Selection -->
+        <section class="panel-section">
+          <div class="section-label">Model Checkpoint</div>
+          <select id="checkpointSelect" class="form-select">
+            <option value="RealVisXL_V5.0_fp16.safetensors">RealVisXL V5.0 (Photorealism)</option>
+            <option value="animagine-xl-3.1.safetensors">Animagine XL 3.1 (Anime & Stylized)</option>
+            <option value="DynaVisionXL_0.6.safetensors">DynaVision XL 0.6 (3D & Cinematic)</option>
+          </select>
+        </section>
+
+        <!-- Prompt Studio -->
+        <section class="panel-section">
+          <div class="section-header">
+            <span class="section-label">Positive Prompt</span>
+            <button type="button" class="link-btn" id="btnClearPrompt">Clear</button>
+          </div>
+          <textarea id="promptInput" class="form-textarea" rows="3" placeholder="Describe the image you want to create..."></textarea>
+          <div class="tag-cloud">
+            <span class="tag-chip" data-tag="hyperrealistic, 8k, raw photo">Photoreal</span>
+            <span class="tag-chip" data-tag="cinematic dramatic lighting">Cinematic</span>
+            <span class="tag-chip" data-tag="intricate details, sharp focus">Sharp</span>
+            <span class="tag-chip" data-tag="masterpiece, highly detailed">Masterpiece</span>
+            <span class="tag-chip" data-tag="macro lens, bokeh">Macro</span>
+          </div>
+        </section>
+
+        <!-- Negative Prompt -->
+        <section class="panel-section">
+          <div class="section-header">
+            <span class="section-label">Negative Prompt</span>
+            <select id="negativePreset" class="preset-select">
+              <option value="photo">Preset: Clean Photo</option>
+              <option value="anime">Preset: Anime Quality</option>
+              <option value="cinematic">Preset: CGI/Art Removal</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <textarea id="negativePromptInput" class="form-textarea" rows="2" placeholder="What to avoid..."></textarea>
+        </section>
+
+        <!-- Aspect Ratio & Resolution -->
+        <section class="panel-section">
+          <div class="section-label">Aspect Ratio</div>
+          <div class="ratio-grid">
+            <button type="button" class="ratio-btn active" data-w="896" data-h="1600" data-ratio="9:16">
+              <span class="ratio-icon ratio-9-16"></span>
+              <span class="ratio-text">9:16</span>
+              <span class="ratio-sub">Shorts</span>
+            </button>
+            <button type="button" class="ratio-btn" data-w="1024" data-h="1024" data-ratio="1:1">
+              <span class="ratio-icon ratio-1-1"></span>
+              <span class="ratio-text">1:1</span>
+              <span class="ratio-sub">Square</span>
+            </button>
+            <button type="button" class="ratio-btn" data-w="1344" data-h="768" data-ratio="16:9">
+              <span class="ratio-icon ratio-16-9"></span>
+              <span class="ratio-text">16:9</span>
+              <span class="ratio-sub">Cinema</span>
+            </button>
+            <button type="button" class="ratio-btn" data-w="896" data-h="1120" data-ratio="4:5">
+              <span class="ratio-icon ratio-4-5"></span>
+              <span class="ratio-text">4:5</span>
+              <span class="ratio-sub">Portrait</span>
+            </button>
+          </div>
+          <div class="res-display">
+            Resolution: <strong id="resText">896 × 1600 px</strong>
+          </div>
+        </section>
+
+        <!-- Advanced Sampler Controls Collapsible -->
+        <details class="panel-section advanced-details">
+          <summary class="section-label cursor-pointer">Advanced Tuning</summary>
+          <div class="advanced-grid">
+            <div class="control-group">
+              <div class="control-header">
+                <span>Steps</span>
+                <span id="stepsVal">25</span>
+              </div>
+              <input type="range" id="stepsInput" min="15" max="50" value="25" class="form-range">
+            </div>
+
+            <div class="control-group">
+              <div class="control-header">
+                <span>CFG Scale</span>
+                <span id="cfgVal">7.0</span>
+              </div>
+              <input type="range" id="cfgInput" min="1.0" max="15.0" step="0.5" value="7.0" class="form-range">
+            </div>
+
+            <div class="control-group">
+              <div class="control-header"><span>Sampler</span></div>
+              <select id="samplerSelect" class="form-select select-sm">
+                <option value="euler">euler</option>
+                <option value="euler_ancestral">euler_ancestral</option>
+                <option value="dpmpp_2m">dpmpp_2m</option>
+              </select>
+            </div>
+
+            <div class="control-group">
+              <div class="control-header"><span>Scheduler</span></div>
+              <select id="schedulerSelect" class="form-select select-sm">
+                <option value="normal">normal</option>
+                <option value="karras">karras</option>
+                <option value="sgm_uniform">sgm_uniform</option>
+              </select>
+            </div>
+
+            <div class="control-group full-width">
+              <div class="control-header">
+                <span>Seed</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="seedRandom" checked> Randomize
+                </label>
+              </div>
+              <input type="number" id="seedInput" class="form-input" placeholder="Random" disabled>
+            </div>
+          </div>
+        </details>
+
+        <!-- Main Action -->
+        <div class="panel-bottom">
+          <button type="button" id="btnGenerate" class="btn btn-primary btn-generate">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+            </svg>
+            <span id="btnGenerateText">Generate Image</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- RIGHT VIEWPORT & GALLERY -->
+      <section class="viewport-panel">
+        <!-- Live Generation Canvas Area -->
+        <div class="canvas-container">
+          <div class="canvas-viewport" id="viewport">
+            <div class="canvas-placeholder" id="placeholder">
+              <div class="empty-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="3" y="3" width="18" height="18" rx="4" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <path d="M21 15l-5-5L5 21" />
+                </svg>
+              </div>
+              <h3>Ready to Create</h3>
+              <p>Type a prompt on the left and click <strong>Generate</strong>.</p>
+            </div>
+
+            <!-- Progress Overlay -->
+            <div class="progress-overlay" id="progressOverlay">
+              <div class="spinner"></div>
+              <div class="progress-info">
+                <div class="progress-status" id="progressStatus">Submitting prompt...</div>
+                <div class="progress-bar-container">
+                  <div class="progress-bar-fill" id="progressBar"></div>
+                </div>
+                <div class="progress-meta" id="progressMeta">Queueing</div>
+              </div>
+            </div>
+
+            <!-- Image View -->
+            <img id="mainImage" class="viewport-image hidden" alt="Generated Output">
+          </div>
+
+          <!-- Viewport Bar -->
+          <div class="viewport-toolbar" id="viewportToolbar">
+            <div class="image-meta" id="imageMeta">No active generation</div>
+            <div class="toolbar-actions">
+              <button class="btn btn-secondary btn-sm" id="btnCopyPrompt" title="Copy Prompt">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                Copy Prompt
+              </button>
+              <a id="btnDownload" download="output.png" class="btn btn-secondary btn-sm" title="Save Image">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                Save
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- History Gallery Strip -->
+        <div class="gallery-section">
+          <div class="gallery-header">
+            <span class="section-label">Recent Generations</span>
+            <span class="gallery-count" id="galleryCount">0 images</span>
+          </div>
+          <div class="gallery-strip" id="galleryStrip">
+            <!-- Thumbnails injected here -->
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

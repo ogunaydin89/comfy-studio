@@ -1,0 +1,3 @@
+# Comfy Studio UI & Server
+# The Studio itself is dependency-free and uses standard library Python 3.9+.
+# No pip dependencies are required to run the studio interface.
