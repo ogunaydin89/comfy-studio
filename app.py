@@ -25,6 +25,7 @@ COMFY_HOST = os.environ.get("COMFY_HOST", "127.0.0.1:8188")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 OUTPUT_DIR = os.path.expanduser("~/Pictures/AI_Generations")
+ENGINE_DIR = os.path.join(BASE_DIR, "engine")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(STATIC_DIR, exist_ok=True)
@@ -422,11 +423,16 @@ class StudioHandler(http.server.SimpleHTTPRequestHandler):
         local_filename = f"Studio_{timestamp}_{clean_model}.png"
         local_path = os.path.join(OUTPUT_DIR, local_filename)
 
+        engine_source_path = os.path.join(ENGINE_DIR, folder_type, subfolder, comfy_filename)
+
         try:
-            with urllib.request.urlopen(comfy_view_url, timeout=30) as resp:
-                with open(local_path, "wb") as f:
-                    shutil.copyfileobj(resp, f)
-            
+            if os.path.isfile(engine_source_path):
+                shutil.move(engine_source_path, local_path)
+            else:
+                with urllib.request.urlopen(comfy_view_url, timeout=30) as resp:
+                    with open(local_path, "wb") as f:
+                        shutil.copyfileobj(resp, f)
+
             self.send_json({
                 "success": True,
                 "filename": local_filename,

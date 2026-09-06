@@ -8,11 +8,13 @@ import os
 import urllib.request
 import json
 
-from PyQt6.QtCore import QUrl, Qt
+from PyQt6.QtCore import QUrl, Qt, QTimer
 from PyQt6.QtWidgets import QApplication, QMainWindow
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineProfile, QWebEnginePage
 from PyQt6.QtGui import QIcon
+
+BACKEND_STATUS_URL = "http://127.0.0.1:5111/api/status"
 
 class StudioWindow(QMainWindow):
     def __init__(self, url, title="Comfy Studio", icon_path=None):
@@ -20,18 +22,37 @@ class StudioWindow(QMainWindow):
         self.setWindowTitle(title)
         self.resize(1400, 920)
         self.setMinimumSize(960, 640)
-        
+        self._closing = False
+
         if icon_path and os.path.isfile(icon_path):
             self.setWindowIcon(QIcon(icon_path))
-        
+
         # Configure isolated web profile
         self.profile = QWebEngineProfile("comfy-studio-isolated", self)
         self.page = QWebEnginePage(self.profile, self)
-        
+
         self.browser = QWebEngineView(self)
         self.browser.setPage(self.page)
         self.browser.setUrl(QUrl(url))
         self.setCentralWidget(self.browser)
+
+        # In-page "Quit & Offload" only shuts down the backend server; it has
+        # no way to close this native Qt window. Poll for the backend going
+        # away (backend-initiated shutdown, or a crash) and close ourselves.
+        self._backend_watchdog = QTimer(self)
+        self._backend_watchdog.timeout.connect(self._check_backend_alive)
+        self._backend_watchdog.start(1500)
+
+    def _check_backend_alive(self):
+        if self._closing:
+            return
+        try:
+            with urllib.request.urlopen(BACKEND_STATUS_URL, timeout=1.5):
+                pass
+        except Exception:
+            self._closing = True
+            self._backend_watchdog.stop()
+            self.close()
 
     def closeEvent(self, event):
         """Clean shutdown hook when user closes the window."""

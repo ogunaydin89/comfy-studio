@@ -11,10 +11,10 @@ COMFY_DIR="$SCRIPT_DIR/engine"
 # AMD ROCm / Navi 23 Hardware Optimizations
 export HSA_OVERRIDE_GFX_VERSION=10.3.0
 export HSA_ENABLE_SDMA=0
-export HSA_ENABLE_INTERRUPT=1
+export HSA_ENABLE_INTERRUPT=0
 export ROCR_VISIBLE_DEVICES=0
 export MIOPEN_FIND_MODE=1
-export PYTORCH_HIP_ALLOC_CONF="expandable_segments:True,garbage_collection_threshold:0.8"
+export PYTORCH_HIP_ALLOC_CONF="garbage_collection_threshold:0.6,max_split_size_mb:64"
 
 exec "$VENV_DIR/bin/python" "$COMFY_DIR/main.py" \
     --listen 127.0.0.1 \
@@ -22,6 +22,7 @@ exec "$VENV_DIR/bin/python" "$COMFY_DIR/main.py" \
     --fp32-vae \
     --cpu-vae \
     --use-split-cross-attention \
+    --reserve-vram 1.0 \
     --enable-cors-header "*" \
     --cache-lru 1 \
     "$@"
