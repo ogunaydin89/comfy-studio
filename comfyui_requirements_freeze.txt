@@ -55,6 +55,11 @@ pydantic-settings==2.15.0
 pydantic_core==2.46.5
 Pygments==2.21.0
 PyOpenGL==3.1.10
+PyQt6==6.11.0
+PyQt6-Qt6==6.11.2
+PyQt6-WebEngine==6.11.0
+PyQt6-WebEngine-Qt6==6.11.2
+PyQt6_sip==13.12.0
 python-dotenv==1.2.3
 pytorch-triton-rocm==3.1.0
 PyYAML==6.0.3

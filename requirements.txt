@@ -1,3 +1,15 @@
 # Comfy Studio UI & Server
-# The Studio itself is dependency-free and uses standard library Python 3.9+.
-# No pip dependencies are required to run the studio interface.
+#
+# The server layer (app.py) is dependency-free: standard library Python 3.9+
+# only, so `python3 app.py` works against a bare interpreter.
+#
+# The native desktop window (window.py) is what run.sh prefers, and it needs
+# Qt. Without these, run.sh silently falls back to Chrome app-mode -- the
+# dependency the native window exists to remove -- so they are listed here
+# rather than left implicit.
+PyQt6>=6.6
+PyQt6-WebEngine>=6.6
+#
+# The SDXL inference engine (engine/, a vendored ComfyUI checkout) carries its
+# own much larger dependency set, including the ROCm build of PyTorch. The
+# exact working versions are pinned in comfyui_requirements_freeze.txt.

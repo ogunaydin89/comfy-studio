@@ -21,6 +21,20 @@ Comfy Studio provides an intuitive, distraction-free creative workspace. It bypa
 
 ---
 
+## 📦 Requirements
+
+| Layer | Needs |
+| :--- | :--- |
+| Server (`app.py`) | Python 3.9+ standard library only — nothing to install |
+| Native window (`window.py`) | `PyQt6`, `PyQt6-WebEngine` (listed in `requirements.txt`) |
+| Inference engine (`engine/`) | The vendored ComfyUI's own stack, pinned in `comfyui_requirements_freeze.txt` |
+
+`run.sh` prefers the native window and falls back to Chrome app-mode, then to
+`xdg-open`, so a venv without the two Qt packages still runs — just not as the
+standalone desktop app.
+
+---
+
 ## 🚀 Quick Start
 
 ### 1. Launch Studio
