@@ -6,4 +6,4 @@ Icon=/home/helin/Code/comfy-studio/static/icon.svg
 Terminal=false
 Type=Application
 Categories=Graphics;2DGraphics;Photography;AudioVideo;
-StartupWMClass=127.0.0.1__5111
+StartupWMClass=comfy-studio

@@ -55,9 +55,21 @@ fi
 # 2. Check if Comfy Studio server is running
 if ! curl -s "http://127.0.0.1:${PORT}/api/status" >/dev/null 2>&1; then
     echo "🚀 Launching Comfy Studio server on http://127.0.0.1:${PORT}..."
-    python3 "$SCRIPT_DIR/app.py" &
+    if [ -x "$SCRIPT_DIR/.venv/bin/python" ]; then
+        "$SCRIPT_DIR/.venv/bin/python" "$SCRIPT_DIR/app.py" &
+    else
+        python3 "$SCRIPT_DIR/app.py" &
+    fi
     SERVER_PID=$!
-    sleep 0.8
+    # Poll rather than sleep a fixed interval: the Qt window starts probing
+    # /api/status the moment it opens, so opening it against a backend that is
+    # not listening yet makes the window shut itself down.
+    for i in $(seq 1 30); do
+        if curl -s "http://127.0.0.1:${PORT}/api/status" >/dev/null 2>&1; then
+            break
+        fi
+        sleep 0.1
+    done
 else
     SERVER_PID=""
 fi
@@ -68,7 +80,7 @@ WINDOW_RUNNER="$SCRIPT_DIR/window.py"
 
 if [ -f "$WINDOW_RUNNER" ] && [ -x "$SCRIPT_DIR/.venv/bin/python" ]; then
     echo "🖥️ Running Comfy Studio in native isolated Qt6 window..."
-    "$SCRIPT_DIR/.venv/bin/python" "$WINDOW_RUNNER" "$URL" "Comfy Studio" "$SCRIPT_DIR/icon.svg"
+    "$SCRIPT_DIR/.venv/bin/python" "$WINDOW_RUNNER" "$URL" "Comfy Studio" "$SCRIPT_DIR/static/icon.svg"
 elif [ -x "/opt/google/chrome/google-chrome" ]; then
     echo "🖥️ Running Comfy Studio (closing window will completely offload and shut down)..."
     mkdir -p "$CHROME_PROFILE"

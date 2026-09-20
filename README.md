@@ -8,15 +8,14 @@ Comfy Studio provides an intuitive, distraction-free creative workspace. It bypa
 
 ## ✨ Features
 
-- **🚀 Zero-Dependency UI Layer**: Written entirely in Python standard library + modern HTML5/CSS3/ES6. No bloated node modules, no Electron, zero extra pip packages required for the studio itself.
-- **⚡ Native App Wrapper**: Runs as an ultra-responsive standalone desktop application via Chrome App mode (`--app=...`) or any modern web browser.
+- **🚀 Zero-Dependency Server Layer**: The studio backend is written entirely in the Python standard library + modern HTML5/CSS3/ES6. No node modules, no Electron, no pip dependencies for the server itself.
+- **⚡ Native Qt6 Window**: Runs as a standalone desktop application in an isolated `QWebEngineView` (`window.py`) served from the project's own `.venv` — no Google Chrome dependency. A browser or Chrome app-mode fallback remains in `run.sh` if PyQt6 is unavailable.
 - **📊 Real-time Hardware Telemetry**: Live VRAM allocation counter (tuned for AMD Radeon RX 6650 XT Navi 23 / ROCm 7.2) and engine health monitoring.
 - **🔄 Seamless Model Swapping**: Directly lists and switches between loaded checkpoints (`RealVisXL`, `AnimagineXL`, `DynaVisionXL`, and custom safetensors).
-- **📐 Aspect Ratio Presets**:
-  - `9:16` (896 × 1600) — YouTube Shorts, TikTok, Instagram Reels.
+- **📐 Aspect Ratio Presets** — the three SDXL-native resolutions verified stable on 8GB VRAM:
+  - `9:16` (768 × 1344) — YouTube Shorts, TikTok, Instagram Reels.
   - `1:1` (1024 × 1024) — High-detail Square.
   - `16:9` (1344 × 768) — Cinematic Widescreen.
-  - `4:5` (896 × 1120) — Social Portrait.
 - **⏱️ Live Progress Feedback**: Real-time step-by-step progress tracking via ComfyUI WebSocket (`ws://127.0.0.1:8188/ws`).
 - **🖼️ Built-in Output Gallery**: Instant access to previous generations with quick clipboard copy, direct download, and one-click opening in Dolphin / file manager.
 
@@ -47,15 +46,41 @@ Then navigate to `http://127.0.0.1:5111`.
 | Output Directory | `~/Pictures/AI_Generations/` | Destination for completed rendered images |
 
 ### Hardware Optimization Notes (AMD ROCm / Navi 23)
-For 8GB VRAM cards like the AMD Radeon RX 6650 XT, launch ComfyUI with:
+
+`launch_engine.sh` is the canonical, tested configuration for the AMD Radeon
+RX 6650 XT — the values below are reproduced from it, and it is what `run.sh`
+actually executes:
+
 ```bash
 export HSA_OVERRIDE_GFX_VERSION=10.3.0
+export HSA_ENABLE_SDMA=0
+export HSA_ENABLE_INTERRUPT=0
+export ROCR_VISIBLE_DEVICES=0
 export MIOPEN_FIND_MODE=1
-export PYTORCH_HIP_ALLOC_CONF="expandable_segments:True,garbage_collection_threshold:0.8"
-python main.py --listen 127.0.0.1 --port 8188 --cpu-vae --use-split-cross-attention --cache-lru 1
+export PYTORCH_HIP_ALLOC_CONF="garbage_collection_threshold:0.6,max_split_size_mb:64"
+
+python engine/main.py --listen 127.0.0.1 --port 8188 \
+    --fp32-vae --cpu-vae --use-split-cross-attention \
+    --reserve-vram 1.0 --enable-cors-header "*" --cache-lru 1
 ```
-- **`--cpu-vae`**: Keeps SDXL UNet diffusion 100% on the GPU while offloading the final single VAE decode pass to the CPU to avoid 8GB VRAM OOM.
+
+- **`--cpu-vae` / `--fp32-vae`**: Keeps SDXL UNet diffusion 100% on the GPU while
+  offloading the final VAE decode pass to the CPU in fp32, avoiding 8GB VRAM OOM.
+- **`--reserve-vram 1.0`**: Non-square resolutions run this card right at the VRAM
+  ceiling. Without headroom the driver corrupts output silently rather than raising
+  an OOM error.
 - **`--cache-lru 1`**: Prevents multi-model switching from thrashing system RAM.
+
+#### ⚠️ Settings that silently corrupt output on this card
+
+These produce noise or garbled images rather than a clean error, so they are easy
+to misdiagnose. Do not "optimize" them back:
+
+- **`HSA_ENABLE_INTERRUPT=1`** — makes the driver signal GPU-kernel completion
+  before VRAM writes have actually landed. Must stay `0`.
+- **`PYTORCH_HIP_ALLOC_CONF=expandable_segments:True`** — combined with this card's
+  tight 8GB budget it corrupts less-common resolutions (notably 9:16 portrait).
+  Use the `garbage_collection_threshold:0.6,max_split_size_mb:64` pair above.
 
 ---
 
