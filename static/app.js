@@ -143,6 +143,23 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function fillFromEngine(select, values) {
+    if (!values || !values.length) return;
+    const previous = select.value;
+    if (select.options.length === values.length &&
+        Array.from(select.options).every((o, i) => o.value === values[i])) {
+      return;
+    }
+    select.innerHTML = "";
+    values.forEach((value) => {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = value;
+      select.appendChild(opt);
+    });
+    select.value = values.includes(previous) ? previous : values[0];
+  }
+
   // Check Backend Status & Available Checkpoints
   async function checkStatus() {
     try {
@@ -178,6 +195,12 @@ document.addEventListener("DOMContentLoaded", () => {
             checkpointSelect.value = currentVal;
           }
         }
+
+        // /api/status already pays for these two lookups against the engine on
+        // every poll; without filling the pickers the markup's three hardcoded
+        // options were all that was reachable, and the answer was discarded.
+        fillFromEngine(samplerSelect, data.samplers);
+        fillFromEngine(schedulerSelect, data.schedulers);
       } else {
         backendStatus.classList.remove("online");
         backendStatus.classList.add("offline");

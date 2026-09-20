@@ -7,6 +7,7 @@ Includes automatic lifecycle management and full VRAM/RAM offloading on exit.
 
 import http.server
 import json
+import re
 import mimetypes
 import os
 import shutil
@@ -32,6 +33,12 @@ IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
 # Only these Host values are answered. The server binds to loopback, but
 # without this check any external name that resolves to 127.0.0.1 (DNS
 # rebinding) is also a valid way to reach these endpoints.
+# The engine's own output trees. Anything else in a save request is a typo or a
+# forged payload, not a location the engine writes to.
+ENGINE_FOLDER_TYPES = frozenset({"output", "temp", "input"})
+
+PROMPT_ID_RE = re.compile(r"^[0-9a-fA-F-]{8,64}$")
+
 ALLOWED_HOSTS = frozenset({
     f"127.0.0.1:{PORT}", f"localhost:{PORT}", f"[::1]:{PORT}",
 })
@@ -173,6 +180,12 @@ class StudioHandler(http.server.SimpleHTTPRequestHandler):
             self.serve_contained(OUTPUT_DIR, urllib.parse.unquote(path[11:]))
         elif path.startswith("/api/history/"):
             prompt_id = path[13:]
+            # This segment is interpolated straight into the upstream URL, so a
+            # crafted value would reach other engine endpoints through what is
+            # meant to be a read-only history lookup. Studio ids are uuid4.
+            if not PROMPT_ID_RE.match(prompt_id):
+                self.send_json({"error": "Invalid prompt id"}, status_code=400)
+                return
             self.proxy_comfy(f"/history/{prompt_id}")
         elif path == "/api/queue":
             self.proxy_comfy("/queue")
@@ -498,6 +511,15 @@ class StudioHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({"error": "Missing filename"}, status_code=400)
             return
 
+        # These three come from the page and end up in shutil.move(), so a
+        # malformed payload could otherwise relocate an arbitrary file into the
+        # gallery. Keep the filename a basename, the folder type known, and the
+        # resolved source inside the engine tree.
+        comfy_filename = os.path.basename(comfy_filename)
+        if folder_type not in ENGINE_FOLDER_TYPES:
+            self.send_json({"error": f"Unknown folder type: {folder_type}"}, status_code=400)
+            return
+
         params = urllib.parse.urlencode({
             "filename": comfy_filename,
             "subfolder": subfolder,
@@ -510,10 +532,11 @@ class StudioHandler(http.server.SimpleHTTPRequestHandler):
         local_filename = f"Studio_{timestamp}_{clean_model}.png"
         local_path = os.path.join(OUTPUT_DIR, local_filename)
 
-        engine_source_path = os.path.join(ENGINE_DIR, folder_type, subfolder, comfy_filename)
+        engine_source_path = safe_join(
+            ENGINE_DIR, os.path.join(folder_type, subfolder, comfy_filename))
 
         try:
-            if os.path.isfile(engine_source_path):
+            if engine_source_path and os.path.isfile(engine_source_path):
                 shutil.move(engine_source_path, local_path)
             else:
                 with urllib.request.urlopen(comfy_view_url, timeout=30) as resp:

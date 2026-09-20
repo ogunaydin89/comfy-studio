@@ -29,6 +29,7 @@ class StudioWindow(QMainWindow):
 
         # Configure isolated web profile
         self.profile = QWebEngineProfile("comfy-studio-isolated", self)
+        self.profile.downloadRequested.connect(self._handle_download)
         self.page = QWebEnginePage(self.profile, self)
 
         self.browser = QWebEngineView(self)
@@ -46,6 +47,14 @@ class StudioWindow(QMainWindow):
         self._backend_watchdog = QTimer(self)
         self._backend_watchdog.timeout.connect(self._check_backend_alive)
         self._backend_watchdog.start(1500)
+
+    def _handle_download(self, download):
+        """Every render is already saved in ~/Pictures/AI_Generations, and the
+        in-page Save button points at that very file, so downloading it would
+        only duplicate it somewhere generated images do not belong. Qt cancels
+        an unanswered download silently; cancel it explicitly instead, so the
+        behaviour is intentional and matches XTTS Studio."""
+        download.cancel()
 
     def _check_backend_alive(self):
         if self._closing:
