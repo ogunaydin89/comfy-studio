@@ -1,7 +1,13 @@
 document.addEventListener("DOMContentLoaded", () => {
   const clientId = "cs_" + Math.random().toString(36).substring(2, 10);
+  const JSON_POST = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}"
+  };
   let ws = null;
   let activePromptId = null;
+  let comfyHost = "127.0.0.1:8188";
   let currentWidth = 768;
   let currentHeight = 1344;
   let currentRatio = "9:16";
@@ -54,15 +60,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Heartbeat loop - informs backend that UI is actively open
   function sendHeartbeat() {
-    fetch("/api/heartbeat", { method: "POST" }).catch(() => {});
+    fetch("/api/heartbeat", JSON_POST).catch(() => {});
   }
   sendHeartbeat();
   setInterval(sendHeartbeat, 3000);
 
-  // Setup WebSocket to ComfyUI for real-time progress
+  // Setup WebSocket to ComfyUI for real-time progress. The host comes from
+  // /api/status so that pointing COMFY_HOST elsewhere keeps progress working
+  // instead of silently leaving the bar frozen.
   function initWebSocket() {
     try {
-      ws = new WebSocket(`ws://127.0.0.1:8188/ws?clientId=${clientId}`);
+      ws = new WebSocket(`ws://${comfyHost}/ws?clientId=${clientId}`);
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
@@ -75,7 +83,22 @@ document.addEventListener("DOMContentLoaded", () => {
       };
     } catch (e) {}
   }
-  initWebSocket();
+
+  // The "executed" WebSocket event and the history poll both resolve the same
+  // finished image. Claiming the id before the first await stops the loser
+  // from saving a second time (the file has already been moved) and from
+  // advancing the batch counter twice, which queued two jobs at once.
+  const claimedPromptIds = new Set();
+
+  function claimPrompt(pId) {
+    if (!pId || claimedPromptIds.has(pId)) return false;
+    claimedPromptIds.add(pId);
+    if (claimedPromptIds.size > 500) {
+      claimedPromptIds.delete(claimedPromptIds.values().next().value);
+    }
+    activePromptId = null;
+    return true;
+  }
 
   function handleComfyMessage(msg) {
     if (!activePromptId) return;
@@ -113,7 +136,9 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (msg.type === "executed") {
       if (msg.data.prompt_id === activePromptId && msg.data.output && msg.data.output.images) {
         const img = msg.data.output.images[0];
-        saveAndDisplayImage(img);
+        if (claimPrompt(msg.data.prompt_id)) {
+          saveAndDisplayImage(img);
+        }
       }
     }
   }
@@ -123,6 +148,11 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const resp = await fetch("/api/status");
       const data = await resp.json();
+      if (data.host && data.host !== comfyHost) {
+        comfyHost = data.host;
+        if (ws) { try { ws.close(); } catch (e) {} }
+      }
+      if (!ws) initWebSocket();
       if (data.online) {
         backendStatus.classList.remove("offline");
         backendStatus.classList.add("online");
@@ -255,7 +285,6 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (e) {
       console.error("Failed to save image:", e);
     } finally {
-      activePromptId = null;
       if (isBatchRunning && (batchInfinite.checked || currentBatchIndex < totalBatches)) {
         currentBatchIndex++;
         progressStatus.textContent = `Batch item saved. Starting #${currentBatchIndex}...`;
@@ -277,7 +306,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function stopBatch() {
     isBatchRunning = false;
     finishGeneration();
-    fetch("/api/interrupt", { method: "POST" }).catch(() => {});
+    fetch("/api/interrupt", JSON_POST).catch(() => {});
   }
 
   btnStopBatch.addEventListener("click", () => {
@@ -334,6 +363,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // null means "let the backend pick". Without this, an empty seed box with
+  // Random unchecked sent -1 for item 1 (random) and 0 for item 2 (fixed).
+  function manualSeed() {
+    if (seedRandom.checked) return null;
+    const parsed = parseInt(seedInput.value, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
   // Generate Trigger with Batch Support
   async function triggerSingleGeneration() {
     const prompt = promptInput.value.trim();
@@ -370,7 +407,7 @@ document.addEventListener("DOMContentLoaded", () => {
       cfg: parseFloat(cfgInput.value),
       sampler_name: samplerSelect.value,
       scheduler: schedulerSelect.value,
-      seed: seedRandom.checked ? -1 : (parseInt(seedInput.value || -1) + (currentBatchIndex - 1)),
+      seed: manualSeed() === null ? -1 : manualSeed() + (currentBatchIndex - 1),
       client_id: clientId
     };
 
@@ -422,7 +459,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (data && data[pId] && data[pId].outputs && data[pId].outputs["9"]) {
           clearInterval(interval);
           const images = data[pId].outputs["9"].images;
-          if (images && images.length > 0) {
+          if (images && images.length > 0 && claimPrompt(pId)) {
             saveAndDisplayImage(images[0]);
           }
         }
@@ -431,7 +468,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   btnOpenFolder.addEventListener("click", async () => {
-    try { await fetch("/api/open_folder", { method: "POST" }); } catch (e) {}
+    try { await fetch("/api/open_folder", JSON_POST); } catch (e) {}
   });
 
   // Purge / Free VRAM without quitting
@@ -440,7 +477,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const prev = btnUnload.textContent;
     btnUnload.textContent = "Purging...";
     try {
-      await fetch("/api/unload", { method: "POST" });
+      await fetch("/api/unload", JSON_POST);
       setTimeout(checkStatus, 500);
     } catch (e) {}
     finally {
@@ -454,7 +491,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (confirm("Shut down Comfy Studio, stop ComfyUI, and free all VRAM & RAM?")) {
       shutdownOverlay.classList.add("active");
       try {
-        await fetch("/api/shutdown", { method: "POST" });
+        await fetch("/api/shutdown", JSON_POST);
       } catch (e) {}
       setTimeout(() => {
         window.close();
@@ -462,10 +499,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Send Beacon on Tab/Window Unload
-  window.addEventListener("beforeunload", () => {
-    navigator.sendBeacon("/api/shutdown");
-  });
+  // No shutdown beacon on unload: it made an ordinary page reload (Ctrl+R)
+  // kill the engine mid-session. The Qt window posts /api/shutdown from its
+  // closeEvent, and the 10s heartbeat watchdog covers the browser fallback.
 
   btnCopyPrompt.addEventListener("click", () => {
     if (promptInput.value) {

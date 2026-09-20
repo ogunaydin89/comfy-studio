@@ -61,7 +61,7 @@ export PYTORCH_HIP_ALLOC_CONF="garbage_collection_threshold:0.6,max_split_size_m
 
 python engine/main.py --listen 127.0.0.1 --port 8188 \
     --fp32-vae --cpu-vae --use-split-cross-attention \
-    --reserve-vram 1.0 --enable-cors-header "*" --cache-lru 1
+    --reserve-vram 1.0 --enable-cors-header "http://127.0.0.1:5111" --cache-lru 1
 ```
 
 - **`--cpu-vae` / `--fp32-vae`**: Keeps SDXL UNet diffusion 100% on the GPU while
@@ -70,6 +70,12 @@ python engine/main.py --listen 127.0.0.1 --port 8188 \
   ceiling. Without headroom the driver corrupts output silently rather than raising
   an OOM error.
 - **`--cache-lru 1`**: Prevents multi-model switching from thrashing system RAM.
+- **`--enable-cors-header "http://127.0.0.1:5111"`**: The Studio page is served on
+  its own port, so its progress WebSocket reaches the engine with an `Origin` that
+  does not match the engine's `Host`. ComfyUI's default `origin_only` middleware
+  answers that mismatch with `403`, so CORS must be enabled — but it is scoped to
+  exactly the Studio's origin rather than `*`, which keeps any other page in any
+  local browser from reading the engine's history, queue or system stats.
 
 #### ⚠️ Settings that silently corrupt output on this card
 
@@ -81,6 +87,28 @@ to misdiagnose. Do not "optimize" them back:
 - **`PYTORCH_HIP_ALLOC_CONF=expandable_segments:True`** — combined with this card's
   tight 8GB budget it corrupts less-common resolutions (notably 9:16 portrait).
   Use the `garbage_collection_threshold:0.6,max_split_size_mb:64` pair above.
+
+---
+
+## 🔒 Local Attack Surface
+
+The Studio server binds to loopback only, and additionally:
+
+- **Paths are contained.** Every `/static/` and `/api/image/` request resolves
+  through `safe_join()`, which rejects anything landing outside its base
+  directory — including percent-encoded traversal (`%2e%2e%2f`).
+- **The `Host` header is checked** against `127.0.0.1`/`localhost`/`[::1]` on the
+  Studio's own port, so a hostname that merely resolves to `127.0.0.1` (DNS
+  rebinding) cannot reach these endpoints.
+- **Writes require a same-origin JSON request.** Every `POST` must carry
+  `Content-Type: application/json` — which cannot be sent cross-origin without a
+  CORS preflight this server never answers — and any request arriving with
+  `Sec-Fetch-Site: cross-site` is refused. Responses carry no
+  `Access-Control-Allow-Origin`, so no other page can read them either.
+- **Orphaned engine output is reclaimed at startup.** Saving into
+  `~/Pictures/AI_Generations` is driven by the page, so a render that finishes
+  after the window closes used to be stranded in `engine/output/`. That directory
+  is now swept on launch, which is what keeps it empty as documented above.
 
 ---
 

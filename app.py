@@ -27,8 +27,61 @@ STATIC_DIR = os.path.join(BASE_DIR, "static")
 OUTPUT_DIR = os.path.expanduser("~/Pictures/AI_Generations")
 ENGINE_DIR = os.path.join(BASE_DIR, "engine")
 
+IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
+
+# Only these Host values are answered. The server binds to loopback, but
+# without this check any external name that resolves to 127.0.0.1 (DNS
+# rebinding) is also a valid way to reach these endpoints.
+ALLOWED_HOSTS = frozenset({
+    f"127.0.0.1:{PORT}", f"localhost:{PORT}", f"[::1]:{PORT}",
+})
+
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(STATIC_DIR, exist_ok=True)
+
+
+def safe_join(base_dir, user_path):
+    """Resolves user_path inside base_dir, or returns None if it escapes.
+
+    Both path segments and percent-encoded traversal ("%2e%2e%2f") reach here
+    from the URL, so joining them onto the base directory unchecked exposes
+    every file the user can read.
+    """
+    base_real = os.path.realpath(base_dir)
+    target = os.path.realpath(os.path.join(base_real, user_path.lstrip("/")))
+    if target != base_real and not target.startswith(base_real + os.sep):
+        return None
+    return target
+
+
+def reclaim_orphaned_outputs():
+    """Moves images the engine wrote while no UI was listening.
+
+    Saving into ~/Pictures is driven by the page, so a generation that finishes
+    after the window closes is stranded in engine/output forever. Sweeping at
+    startup keeps that directory empty, as documented.
+    """
+    engine_output = os.path.join(ENGINE_DIR, "output")
+    if not os.path.isdir(engine_output):
+        return
+    moved = 0
+    for entry in os.scandir(engine_output):
+        if not entry.is_file() or not entry.name.lower().endswith(IMAGE_EXTENSIONS):
+            continue
+        stamp = time.strftime("%Y%m%d_%H%M%S", time.localtime(entry.stat().st_mtime))
+        ext = os.path.splitext(entry.name)[1]
+        dest = os.path.join(OUTPUT_DIR, f"Studio_{stamp}_recovered{ext}")
+        suffix = 1
+        while os.path.exists(dest):
+            dest = os.path.join(OUTPUT_DIR, f"Studio_{stamp}_recovered_{suffix}{ext}")
+            suffix += 1
+        try:
+            shutil.move(entry.path, dest)
+            moved += 1
+        except Exception as e:
+            print(f"⚠️ Could not reclaim {entry.name}: {e}")
+    if moved:
+        print(f"♻️ Reclaimed {moved} orphaned image(s) into {OUTPUT_DIR}")
 
 # Lifecycle Watchdog
 last_heartbeat = time.time()
@@ -74,24 +127,50 @@ class StudioHandler(http.server.SimpleHTTPRequestHandler):
         sys.stdout.write(f"[{time.strftime('%H:%M:%S')}] {format % args}\n")
         sys.stdout.flush()
 
+    def request_is_local(self):
+        """Rejects foreign Host headers and cross-site requests.
+
+        Chromium (and therefore the Qt window) always sends Sec-Fetch-Site, so
+        a page on another origin cannot forge a same-origin value here. Without
+        this, any page in any local browser could POST to /api/shutdown.
+        """
+        if self.headers.get("Host", "") not in ALLOWED_HOSTS:
+            self.send_error(403, "Forbidden host")
+            return False
+        site = self.headers.get("Sec-Fetch-Site")
+        if site is not None and site not in ("same-origin", "none"):
+            self.send_error(403, "Cross-site request rejected")
+            return False
+        return True
+
+    def requires_json_body(self):
+        """Blocks form/beacon-shaped cross-origin POSTs.
+
+        An application/json body cannot be sent cross-origin without a CORS
+        preflight, and this server answers none.
+        """
+        ctype = self.headers.get("Content-Type", "")
+        if ctype.split(";")[0].strip().lower() != "application/json":
+            self.send_error(415, "Expected Content-Type: application/json")
+            return False
+        return True
+
     def do_GET(self):
+        if not self.request_is_local():
+            return
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
 
         if path == "/" or path == "/index.html":
             self.serve_file(os.path.join(STATIC_DIR, "index.html"), "text/html")
         elif path.startswith("/static/"):
-            rel_path = path[8:]
-            target = os.path.join(STATIC_DIR, rel_path)
-            self.serve_file(target)
+            self.serve_contained(STATIC_DIR, path[8:])
         elif path == "/api/status":
             self.handle_api_status()
         elif path == "/api/gallery":
             self.handle_api_gallery()
         elif path.startswith("/api/image/"):
-            filename = urllib.parse.unquote(path[11:])
-            target = os.path.join(OUTPUT_DIR, filename)
-            self.serve_file(target)
+            self.serve_contained(OUTPUT_DIR, urllib.parse.unquote(path[11:]))
         elif path.startswith("/api/history/"):
             prompt_id = path[13:]
             self.proxy_comfy(f"/history/{prompt_id}")
@@ -101,6 +180,8 @@ class StudioHandler(http.server.SimpleHTTPRequestHandler):
             self.send_error(404, "Not Found")
 
     def do_POST(self):
+        if not self.request_is_local() or not self.requires_json_body():
+            return
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
 
@@ -162,6 +243,13 @@ class StudioHandler(http.server.SimpleHTTPRequestHandler):
             os._exit(0)
         threading.Thread(target=perform_exit).start()
 
+    def serve_contained(self, base_dir, relative_path, content_type=None):
+        target = safe_join(base_dir, relative_path)
+        if target is None:
+            self.send_error(403, "Forbidden path")
+            return
+        self.serve_file(target, content_type)
+
     def serve_file(self, filepath, content_type=None):
         if not os.path.isfile(filepath):
             self.send_error(404, f"File not found: {os.path.basename(filepath)}")
@@ -189,7 +277,6 @@ class StudioHandler(http.server.SimpleHTTPRequestHandler):
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
 
@@ -283,7 +370,7 @@ class StudioHandler(http.server.SimpleHTTPRequestHandler):
         files = []
         try:
             for entry in os.scandir(OUTPUT_DIR):
-                if entry.is_file() and entry.name.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+                if entry.is_file() and entry.name.lower().endswith(IMAGE_EXTENSIONS):
                     stat = entry.stat()
                     files.append({
                         "name": entry.name,
@@ -451,6 +538,8 @@ def run():
     server_address = ("127.0.0.1", PORT)
     server_instance = ThreadedHTTPServer(server_address, StudioHandler)
     
+    reclaim_orphaned_outputs()
+
     # Start auto-shutdown watchdog thread
     wd = threading.Thread(target=watchdog_loop, daemon=True)
     wd.start()
