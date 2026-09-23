@@ -10,6 +10,7 @@ Comfy Studio provides an intuitive, distraction-free creative workspace. It bypa
 
 - **🚀 Zero-Dependency Server Layer**: The studio backend is written entirely in the Python standard library + modern HTML5/CSS3/ES6. No node modules, no Electron, no pip dependencies for the server itself.
 - **⚡ Native Qt6 Window**: Runs as a standalone desktop application in an isolated `QWebEngineView` (`window.py`) served from the project's own `.venv` — no Google Chrome dependency. A browser or Chrome app-mode fallback remains in `run.sh` if PyQt6 is unavailable.
+  - Closing: the in-page quit button cannot close a top-level `QWebEngineView` window by itself, so `window.py` runs a backend-liveness watchdog (`QTimer` polling `/api/status`) and closes the window once the backend stops.
 - **📊 Real-time Hardware Telemetry**: Live VRAM allocation counter (tuned for AMD Radeon RX 6650 XT Navi 23 / ROCm 7.2) and engine health monitoring.
 - **🔄 Seamless Model Swapping**: Directly lists and switches between loaded checkpoints (`RealVisXL`, `AnimagineXL`, `DynaVisionXL`, and custom safetensors).
 - **📐 Aspect Ratio Presets** — the three SDXL-native resolutions verified stable on 8GB VRAM:
@@ -18,6 +19,7 @@ Comfy Studio provides an intuitive, distraction-free creative workspace. It bypa
   - `16:9` (1344 × 768) — Cinematic Widescreen.
 - **⏱️ Live Progress Feedback**: Real-time step-by-step progress tracking via ComfyUI WebSocket (`ws://127.0.0.1:8188/ws`).
 - **🖼️ Built-in Output Gallery**: Instant access to previous generations with quick clipboard copy, direct download, and one-click opening in Dolphin / file manager.
+- **🔁 Batch & Infinite Mode**: Batches of 1–100 images or an infinite loop, cancellable at any time via `/api/interrupt`. Finished images are *moved* (not copied) from ComfyUI's `engine/output/` to `~/Pictures/AI_Generations/`, so `engine/output/` stays empty in normal use.
 
 ---
 
