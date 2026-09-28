@@ -144,3 +144,5 @@ git push -u origin main
 ## 📄 License
 
 MIT © Ogün Aydın ([ogunaydin89](https://github.com/ogunaydin89))
+
+This project uses **PyQt6**, which is licensed under GPL-3.0 and is installed separately with pip (it is never included in this repository). The code here is MIT; a packaged build that bundles PyQt6 (e.g. an .exe or AppImage) must be distributed under GPL-3.0.

@@ -13,3 +13,13 @@ models/
 *.ckpt
 *.bin
 *.pt
+
+# PyQt6 / Qt is installed with pip and never committed: it is GPL-3.0, this repository's code is MIT
+venv/
+PyQt6/
+PyQt6_*/
+PyQt6-*/
+Qt6/
+# Packaged builds (these would bundle PyQt6 and fall under GPL-3.0)
+build/
+dist/
