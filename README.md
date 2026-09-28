@@ -128,13 +128,13 @@ The Studio server binds to loopback only, and additionally:
 
 ---
 
-## 📦 Codeberg Git Setup
+## 📦 GitHub Git Setup
 
 ```bash
 git init
 git add .
 git commit -m "feat: initial commit of Comfy Studio"
-git remote add origin https://codeberg.org/helinesca/comfy-studio.git
+git remote add origin https://github.com/ogunaydin89/comfy-studio.git
 git branch -M main
 git push -u origin main
 ```
@@ -143,4 +143,4 @@ git push -u origin main
 
 ## 📄 License
 
-MIT © [helinesca](https://codeberg.org/helinesca)
+MIT © Ogün Aydın ([ogunaydin89](https://github.com/ogunaydin89))
