@@ -1,9 +1,9 @@
 __pycache__/
 *.py[cod]
 *$py.class
-.DS_Store
 *.log
 .env
+*.env
 
 # Local Engine & Model Binaries (Excluded from Git)
 .venv/
@@ -23,3 +23,10 @@ Qt6/
 # Packaged builds (these would bundle PyQt6 and fall under GPL-3.0)
 build/
 dist/
+
+# OS and Editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
