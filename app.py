@@ -531,6 +531,11 @@ class StudioHandler(http.server.SimpleHTTPRequestHandler):
         clean_model = model_name.split(".")[0].replace("_fp16", "").replace("-", "_")
         local_filename = f"Studio_{timestamp}_{clean_model}.png"
         local_path = os.path.join(OUTPUT_DIR, local_filename)
+        suffix = 1
+        while os.path.exists(local_path):
+            local_filename = f"Studio_{timestamp}_{clean_model}_{suffix}.png"
+            local_path = os.path.join(OUTPUT_DIR, local_filename)
+            suffix += 1
 
         engine_source_path = safe_join(
             ENGINE_DIR, os.path.join(folder_type, subfolder, comfy_filename))
