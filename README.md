@@ -106,41 +106,6 @@ to misdiagnose. Do not "optimize" them back:
 
 ---
 
-## 🔒 Local Attack Surface
-
-The Studio server binds to loopback only, and additionally:
-
-- **Paths are contained.** Every `/static/` and `/api/image/` request resolves
-  through `safe_join()`, which rejects anything landing outside its base
-  directory — including percent-encoded traversal (`%2e%2e%2f`).
-- **The `Host` header is checked** against `127.0.0.1`/`localhost`/`[::1]` on the
-  Studio's own port, so a hostname that merely resolves to `127.0.0.1` (DNS
-  rebinding) cannot reach these endpoints.
-- **Writes require a same-origin JSON request.** Every `POST` must carry
-  `Content-Type: application/json` — which cannot be sent cross-origin without a
-  CORS preflight this server never answers — and any request arriving with
-  `Sec-Fetch-Site: cross-site` is refused. Responses carry no
-  `Access-Control-Allow-Origin`, so no other page can read them either.
-- **Orphaned engine output is reclaimed at startup.** Saving into
-  `~/Pictures/AI_Generations` is driven by the page, so a render that finishes
-  after the window closes used to be stranded in `engine/output/`. That directory
-  is now swept on launch, which is what keeps it empty as documented above.
-
----
-
-## 📦 GitHub Git Setup
-
-```bash
-git init
-git add .
-git commit -m "feat: initial commit of Comfy Studio"
-git remote add origin https://github.com/ogunaydin89/comfy-studio.git
-git branch -M main
-git push -u origin main
-```
-
----
-
 ## 📄 License
 
 MIT © Ogün Aydın ([ogunaydin89](https://github.com/ogunaydin89))
